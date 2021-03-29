@@ -177,15 +177,23 @@ trait Huffman extends HuffmanInterface {
    * the resulting list of characters.
    */
   def decode(tree: CodeTree, bits: List[Bit]): List[Char] = {
+    @tailrec
     def Acc(iterTree: CodeTree, iterBits: List[Bit], acc: List[Char]): List[Char] ={
       if (iterBits.isEmpty) acc
       else {
         val goRight = iterBits.head == 1
         iterTree match {
-          case Fork(left, right, chars, weight) => {
-            if (goRight) Acc(right, iterBits.tail, acc)
-            else Acc(left, iterBits.tail, acc)
-          }
+          case Fork(left1, right1, chars, weight) =>
+            if (goRight) {
+              right1 match {
+                case Fork(left, right, chars, weight) => Acc(right1, iterBits.tail, acc)
+                case Leaf(char, weight) =>Acc(right1, iterBits, acc)
+              }
+            } else
+              left1 match {
+                case Fork(left, right, chars, weight) => Acc(left1, iterBits.tail, acc)
+                case Leaf(char, weight) =>Acc(left1, iterBits, acc)
+              }
           case Leaf(char, weight) => Acc(tree, iterBits.tail, acc :+ char)
         }
       }
@@ -252,8 +260,7 @@ trait Huffman extends HuffmanInterface {
    * This function returns the bit sequence that represents the character `char` in
    * the code table `table`.
    */
-  def codeBits(table: CodeTable)(char: Char): List[Bit] = ???
-
+  def codeBits(table: CodeTable)(char: Char): List[Bit] = table.filter(_._1==char).head._2
   /**
    * Given a code tree, create a code table which contains, for every character in the
    * code tree, the sequence of bits representing that character.
