@@ -12,9 +12,7 @@ import scala.annotation.tailrec
  * present in the leaves below it. The weight of a `Fork` node is the sum of the weights of these
  * leaves.
  */
-abstract class CodeTree {
-  val weight: Int
-}
+abstract class CodeTree
 case class Fork(left: CodeTree, right: CodeTree, chars: List[Char], weight: Int) extends CodeTree
 case class Leaf(char: Char, weight: Int) extends CodeTree
 
@@ -119,23 +117,10 @@ trait Huffman extends HuffmanInterface {
    * If `trees` is a list of less than two elements, that list should be returned
    * unchanged.
    */
-  def combine(trees: List[CodeTree]): List[CodeTree] = {
-    if (singleton(trees)) trees
-    else {
-      def getCharsInt(tree: CodeTree): (List[Char], Int) = {
-        tree match {
-          case Fork(left, right, chars, weight) => (chars, weight)
-          case Leaf(char, weight) => (List(char), weight)
-        }
-      }
-
-      trees.appended(Fork(
-        left = trees.head,
-        right = trees(1),
-        chars = getCharsInt(trees.head)._1 :++ getCharsInt(trees(1))._1,
-        weight = getCharsInt(trees.head)._2 + getCharsInt(trees(1))._2))
-      trees.sortBy(_.weight)
-    }
+  def combine(trees: List[CodeTree]): List[CodeTree] = trees match {
+    case left :: right :: cs => (makeCodeTree(left, right) :: cs)
+      .sortWith((t1, t2) => weight(t1) < weight(t2))
+    case _ => trees
   }
 
   /**
@@ -243,6 +228,7 @@ trait Huffman extends HuffmanInterface {
       }
     }
 
+    @tailrec
     def generate(chars: List[Char], acc: List[Bit]): List[Bit] = {
       if (chars.isEmpty) acc
       else {
@@ -269,14 +255,23 @@ trait Huffman extends HuffmanInterface {
    * a valid code tree that can be represented as a code table. Using the code tables of the
    * sub-trees, think of how to build the code table for the entire tree.
    */
-  def convert(tree: CodeTree): CodeTable = ???
+  def convert(tree: CodeTree): CodeTable = {
+    def helper(iterTree: CodeTree, acc: CodeTable, bits: List[Bit]): CodeTable = {
+      iterTree match {
+        case Fork(left, right, chars, weight) =>
+          mergeCodeTables(helper(left, acc, bits.appended(0)), helper(right, acc, bits.appended(1)))
+        case Leaf(char, weight) =>  mergeCodeTables(acc, List((char, bits)))
+      }
+    }
+    helper(tree, List(), List())
+  }
 
   /**
    * This function takes two code tables and merges them into one. Depending on how you
    * use it in the `convert` method above, this merge method might also do some transformations
    * on the two parameter code tables.
    */
-  def mergeCodeTables(a: CodeTable, b: CodeTable): CodeTable = ???
+  def mergeCodeTables(a: CodeTable, b: CodeTable): CodeTable = a.appendedAll(b)
 
   /**
    * This function encodes `text` according to the code tree `tree`.
@@ -284,7 +279,15 @@ trait Huffman extends HuffmanInterface {
    * To speed up the encoding process, it first converts the code tree to a code table
    * and then uses it to perform the actual encoding.
    */
-  def quickEncode(tree: CodeTree)(text: List[Char]): List[Bit] = ???
+  def quickEncode(tree: CodeTree)(text: List[Char]): List[Bit] = {
+    val code_table = convert(tree)
+    @tailrec
+    def helper(iterText: List[Char], acc: List[Bit]): List[Bit] = {
+      if (iterText.isEmpty) acc
+      else helper(iterText.tail, acc.appendedAll(codeBits(code_table)(iterText.head)))
+    }
+    helper(text, List())
+  }
 }
 
 object Huffman extends Huffman
